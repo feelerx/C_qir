@@ -3,13 +3,13 @@ source_filename = "./sample.c"
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx11.0.0"
 
-@.str = private unnamed_addr constant [38 x i8] c"=== Bell pair + extra gates test ===\0A\00", align 1
+@.str = private unnamed_addr constant [30 x i8] c"=== Test quantum circuit ===\0A\00", align 1
 @.str.1 = private unnamed_addr constant [22 x i8] c"Measurement[%d] = %d\0A\00", align 1
 @__quantum__rt__result_one = external global ptr
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
 define i32 @main() #0 {
-  %1 = call ptr @__quantum__rt__qubit_allocate_array(i64 4)
+  %1 = call ptr @__quantum__rt__qubit_allocate_array(i64 3)
   %qubit_array_ptr = alloca ptr, align 8
   store ptr %1, ptr %qubit_array_ptr, align 8
   %2 = alloca i32, align 4
@@ -18,7 +18,7 @@ define i32 @main() #0 {
   %5 = alloca i32, align 4
   %6 = alloca i32, align 4
   store i32 0, ptr %2, align 4
-  store i32 4, ptr %3, align 4
+  store i32 3, ptr %3, align 4
   store ptr null, ptr %4, align 8
   %7 = call i32 (ptr, ...) @printf(ptr noundef @.str)
   %8 = load ptr, ptr %4, align 8
@@ -44,57 +44,40 @@ define i32 @main() #0 {
   %qe_ptr_i83 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %loaded_qubit_array2, i64 2)
   %qbit4 = load ptr, ptr %qe_ptr_i83, align 8
   call void @__quantum__qis__x__body(ptr %qbit4)
-  %14 = load ptr, ptr %4, align 8
-  %15 = load i32, ptr %3, align 4
-  %loaded_qubit_array5 = load ptr, ptr %qubit_array_ptr, align 8
-  %qe_ptr_i86 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %loaded_qubit_array5, i64 3)
-  %qbit7 = load ptr, ptr %qe_ptr_i86, align 8
-  call void @__quantum__qis__h__body(ptr %qbit7)
-  %16 = load ptr, ptr %4, align 8
-  %17 = load i32, ptr %3, align 4
-  %loaded_qubit_array8 = load ptr, ptr %qubit_array_ptr, align 8
-  %tgt_qe_i89 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %loaded_qubit_array8, i64 2)
-  %tgt_q10 = load ptr, ptr %tgt_qe_i89, align 8
-  %controls_arr11 = call ptr @__quantum__rt__qubit_allocate_array(i64 1)
-  %ctrl_elem_i812 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %controls_arr11, i64 0)
-  %ctrl_src_i813 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %loaded_qubit_array8, i64 3)
-  %ctrl_q14 = load ptr, ptr %ctrl_src_i813, align 8
-  store ptr %ctrl_q14, ptr %ctrl_elem_i812, align 8
-  call void @__quantum__qis__x__ctl(ptr %controls_arr11, ptr %tgt_q10)
   store i32 0, ptr %5, align 4
-  br label %18
+  br label %14
 
-18:                                               ; preds = %29, %0
-  %19 = load i32, ptr %5, align 4
+14:                                               ; preds = %25, %0
+  %15 = load i32, ptr %5, align 4
+  %16 = load i32, ptr %3, align 4
+  %17 = icmp slt i32 %15, %16
+  br i1 %17, label %18, label %28
+
+18:                                               ; preds = %14
+  %19 = load ptr, ptr %4, align 8
   %20 = load i32, ptr %3, align 4
-  %21 = icmp slt i32 %19, %20
-  br i1 %21, label %22, label %32
-
-22:                                               ; preds = %18
-  %23 = load ptr, ptr %4, align 8
-  %24 = load i32, ptr %3, align 4
-  %25 = load i32, ptr %5, align 4
-  %loaded_qubit_array15 = load ptr, ptr %qubit_array_ptr, align 8
-  %idx_64 = sext i32 %25 to i64
-  %qe_ptr_i816 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %loaded_qubit_array15, i64 %idx_64)
-  %qbit17 = load ptr, ptr %qe_ptr_i816, align 8
-  %resptr = call ptr @__quantum__qis__mz__body(ptr %qbit17)
+  %21 = load i32, ptr %5, align 4
+  %loaded_qubit_array5 = load ptr, ptr %qubit_array_ptr, align 8
+  %idx_64 = sext i32 %21 to i64
+  %qe_ptr_i86 = call ptr @__quantum__rt__array_get_element_ptr_1d(ptr %loaded_qubit_array5, i64 %idx_64)
+  %qbit7 = load ptr, ptr %qe_ptr_i86, align 8
+  %resptr = call ptr @__quantum__qis__mz__body(ptr %qbit7)
   %result_one = load ptr, ptr @__quantum__rt__result_one, align 8
   %isone = call i1 @__quantum__rt__result_equal(ptr %resptr, ptr %result_one)
   %m_i32 = zext i1 %isone to i32
   store i32 %m_i32, ptr %6, align 4
+  %22 = load i32, ptr %5, align 4
+  %23 = load i32, ptr %6, align 4
+  %24 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, i32 noundef %22, i32 noundef %23)
+  br label %25
+
+25:                                               ; preds = %18
   %26 = load i32, ptr %5, align 4
-  %27 = load i32, ptr %6, align 4
-  %28 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, i32 noundef %26, i32 noundef %27)
-  br label %29
+  %27 = add nsw i32 %26, 1
+  store i32 %27, ptr %5, align 4
+  br label %14, !llvm.loop !5
 
-29:                                               ; preds = %22
-  %30 = load i32, ptr %5, align 4
-  %31 = add nsw i32 %30, 1
-  store i32 %31, ptr %5, align 4
-  br label %18, !llvm.loop !5
-
-32:                                               ; preds = %18
+28:                                               ; preds = %14
   ret i32 0
 }
 

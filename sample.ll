@@ -3,7 +3,7 @@ source_filename = "./sample.c"
 target datalayout = "e-m:o-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128"
 target triple = "x86_64-apple-macosx11.0.0"
 
-@.str = private unnamed_addr constant [38 x i8] c"=== Bell pair + extra gates test ===\0A\00", align 1
+@.str = private unnamed_addr constant [30 x i8] c"=== Test quantum circuit ===\0A\00", align 1
 @.str.1 = private unnamed_addr constant [22 x i8] c"Measurement[%d] = %d\0A\00", align 1
 
 ; Function Attrs: noinline nounwind optnone ssp uwtable
@@ -14,7 +14,7 @@ define i32 @main() #0 {
   %4 = alloca i32, align 4
   %5 = alloca i32, align 4
   store i32 0, ptr %1, align 4
-  store i32 4, ptr %2, align 4
+  store i32 3, ptr %2, align 4
   store ptr null, ptr %3, align 8
   %6 = call i32 (ptr, ...) @printf(ptr noundef @.str)
   %7 = load ptr, ptr %3, align 8
@@ -26,39 +26,33 @@ define i32 @main() #0 {
   %11 = load ptr, ptr %3, align 8
   %12 = load i32, ptr %2, align 4
   call void @qc_x(ptr noundef %11, i32 noundef %12, i32 noundef 2)
-  %13 = load ptr, ptr %3, align 8
-  %14 = load i32, ptr %2, align 4
-  call void @qc_h(ptr noundef %13, i32 noundef %14, i32 noundef 3)
-  %15 = load ptr, ptr %3, align 8
-  %16 = load i32, ptr %2, align 4
-  call void @qc_cnot(ptr noundef %15, i32 noundef %16, i32 noundef 3, i32 noundef 2)
   store i32 0, ptr %4, align 4
-  br label %17
+  br label %13
 
-17:                                               ; preds = %29, %0
-  %18 = load i32, ptr %4, align 4
+13:                                               ; preds = %25, %0
+  %14 = load i32, ptr %4, align 4
+  %15 = load i32, ptr %2, align 4
+  %16 = icmp slt i32 %14, %15
+  br i1 %16, label %17, label %28
+
+17:                                               ; preds = %13
+  %18 = load ptr, ptr %3, align 8
   %19 = load i32, ptr %2, align 4
-  %20 = icmp slt i32 %18, %19
-  br i1 %20, label %21, label %32
+  %20 = load i32, ptr %4, align 4
+  %21 = call i32 @qc_measure(ptr noundef %18, i32 noundef %19, i32 noundef %20)
+  store i32 %21, ptr %5, align 4
+  %22 = load i32, ptr %4, align 4
+  %23 = load i32, ptr %5, align 4
+  %24 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, i32 noundef %22, i32 noundef %23)
+  br label %25
 
-21:                                               ; preds = %17
-  %22 = load ptr, ptr %3, align 8
-  %23 = load i32, ptr %2, align 4
-  %24 = load i32, ptr %4, align 4
-  %25 = call i32 @qc_measure(ptr noundef %22, i32 noundef %23, i32 noundef %24)
-  store i32 %25, ptr %5, align 4
+25:                                               ; preds = %17
   %26 = load i32, ptr %4, align 4
-  %27 = load i32, ptr %5, align 4
-  %28 = call i32 (ptr, ...) @printf(ptr noundef @.str.1, i32 noundef %26, i32 noundef %27)
-  br label %29
+  %27 = add nsw i32 %26, 1
+  store i32 %27, ptr %4, align 4
+  br label %13, !llvm.loop !5
 
-29:                                               ; preds = %21
-  %30 = load i32, ptr %4, align 4
-  %31 = add nsw i32 %30, 1
-  store i32 %31, ptr %4, align 4
-  br label %17, !llvm.loop !5
-
-32:                                               ; preds = %17
+28:                                               ; preds = %13
   ret i32 0
 }
 
