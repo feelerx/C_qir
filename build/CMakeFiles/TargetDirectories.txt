@@ -1,0 +1,8 @@
+/Users/mac/Desktop/test/build/CMakeFiles/intrinsics_gen.dir
+/Users/mac/Desktop/test/build/CMakeFiles/vt_gen.dir
+/Users/mac/Desktop/test/build/CMakeFiles/omp_gen.dir
+/Users/mac/Desktop/test/build/CMakeFiles/acc_gen.dir
+/Users/mac/Desktop/test/build/CMakeFiles/target_parser_gen.dir
+/Users/mac/Desktop/test/build/CMakeFiles/CToQIRPass.dir
+/Users/mac/Desktop/test/build/CMakeFiles/edit_cache.dir
+/Users/mac/Desktop/test/build/CMakeFiles/rebuild_cache.dir
