@@ -19,72 +19,77 @@ public:
   PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
     LLVMContext &Ctx = M.getContext();
 
-    // === Types ===
-    StructType *QubitTy = StructType::create(Ctx, "Qubit");
-    PointerType *QubitPtrTy = PointerType::get(QubitTy, 0);
-
-    StructType *ArrayTy = StructType::create(Ctx, "Array");
-    PointerType *ArrayPtrTy = PointerType::get(ArrayTy, 0);
+    // === Types (LLVM 21 with Opaque Pointers) ===
+    // In opaque pointer mode, all pointers are just 'ptr' - no pointee type
+    Type *PtrTy = PointerType::get(Ctx, 0);  // Generic opaque pointer type
 
     Type *Int8Ty = Type::getInt8Ty(Ctx);
     Type *Int32Ty = Type::getInt32Ty(Ctx);
     Type *Int64Ty = Type::getInt64Ty(Ctx);
     Type *VoidTy = Type::getVoidTy(Ctx);
-    PointerType *Int8PtrTy = PointerType::get(Int8Ty, 0);
+    Type *BoolTy = Type::getInt1Ty(Ctx);
 
     // === Runtime declarations (create if missing) ===
 
-    // __quantum__rt__qubit_allocate_array(i64) -> Array*
+    // __quantum__rt__qubit_allocate_array(i64) -> ptr
     Function *fnAllocArr = M.getFunction("__quantum__rt__qubit_allocate_array");
     if (!fnAllocArr) {
-      FunctionType *ft = FunctionType::get(ArrayPtrTy, {Int64Ty}, false);
+      FunctionType *ft = FunctionType::get(PtrTy, {Int64Ty}, false);
       fnAllocArr = Function::Create(ft, Function::ExternalLinkage, "__quantum__rt__qubit_allocate_array", &M);
     }
 
-    // __quantum__rt__array_get_element_ptr_1d(Array*, i64) -> i8*
+    // __quantum__rt__array_get_element_ptr_1d(ptr, i64) -> ptr
     Function *fnArrayGetElem = M.getFunction("__quantum__rt__array_get_element_ptr_1d");
     if (!fnArrayGetElem) {
-      FunctionType *ft = FunctionType::get(Int8PtrTy, {ArrayPtrTy, Int64Ty}, false);
+      FunctionType *ft = FunctionType::get(PtrTy, {PtrTy, Int64Ty}, false);
       fnArrayGetElem = Function::Create(ft, Function::ExternalLinkage, "__quantum__rt__array_get_element_ptr_1d", &M);
     }
 
-    // QIS ops
+    // __quantum__rt__qubit_release_array(ptr) -> void
+    Function *fnReleaseArr = M.getFunction("__quantum__rt__qubit_release_array");
+    if (!fnReleaseArr) {
+      FunctionType *ft = FunctionType::get(VoidTy, {PtrTy}, false);
+      fnReleaseArr = Function::Create(ft, Function::ExternalLinkage, "__quantum__rt__qubit_release_array", &M);
+    }
+
+    // QIS ops - all take ptr (opaque qubit pointer)
     Function *fnH = M.getFunction("__quantum__qis__h__body");
     if (!fnH) {
-      FunctionType *ft = FunctionType::get(VoidTy, {QubitPtrTy}, false);
+      FunctionType *ft = FunctionType::get(VoidTy, {PtrTy}, false);
       fnH = Function::Create(ft, Function::ExternalLinkage, "__quantum__qis__h__body", &M);
     }
+    
     Function *fnX = M.getFunction("__quantum__qis__x__body");
     if (!fnX) {
-      FunctionType *ft = FunctionType::get(VoidTy, {QubitPtrTy}, false);
+      FunctionType *ft = FunctionType::get(VoidTy, {PtrTy}, false);
       fnX = Function::Create(ft, Function::ExternalLinkage, "__quantum__qis__x__body", &M);
     }
-    // Controlled X: (Array* controls, Qubit* target)
+    
+    // Controlled X: (ptr controls, ptr target)
     Function *fnXctl = M.getFunction("__quantum__qis__x__ctl");
     if (!fnXctl) {
-      FunctionType *ft = FunctionType::get(VoidTy, {ArrayPtrTy, QubitPtrTy}, false);
+      FunctionType *ft = FunctionType::get(VoidTy, {PtrTy, PtrTy}, false);
       fnXctl = Function::Create(ft, Function::ExternalLinkage, "__quantum__qis__x__ctl", &M);
     }
 
-    // Measurement: mz(Qubit*) -> Result*
-    PointerType *ResultPtrTy = PointerType::get(Int8Ty, 0); // opaque placeholder for Result*
+    // Measurement: mz(ptr) -> ptr
     Function *fnMz = M.getFunction("__quantum__qis__mz__body");
     if (!fnMz) {
-      FunctionType *ft = FunctionType::get(ResultPtrTy, {QubitPtrTy}, false);
+      FunctionType *ft = FunctionType::get(PtrTy, {PtrTy}, false);
       fnMz = Function::Create(ft, Function::ExternalLinkage, "__quantum__qis__mz__body", &M);
     }
 
-    // result_equal(Result*, Result*) -> i1
+    // result_equal(ptr, ptr) -> i1
     Function *fnResultEqual = M.getFunction("__quantum__rt__result_equal");
     if (!fnResultEqual) {
-      FunctionType *ft = FunctionType::get(Type::getInt1Ty(Ctx), {ResultPtrTy, ResultPtrTy}, false);
+      FunctionType *ft = FunctionType::get(BoolTy, {PtrTy, PtrTy}, false);
       fnResultEqual = Function::Create(ft, Function::ExternalLinkage, "__quantum__rt__result_equal", &M);
     }
 
-    // External global: __quantum__rt__result_one (Result*)
+    // External global: __quantum__rt__result_one (ptr)
     GlobalVariable *gResultOne = M.getGlobalVariable("__quantum__rt__result_one");
     if (!gResultOne) {
-      gResultOne = new GlobalVariable(M, ResultPtrTy, /*isConstant=*/false,
+      gResultOne = new GlobalVariable(M, PtrTy, /*isConstant=*/false,
                                       GlobalValue::ExternalLinkage, /*Initializer=*/nullptr,
                                       "__quantum__rt__result_one");
     }
@@ -169,6 +174,7 @@ public:
             // If we couldn't resolve it statically, create a runtime load
             if (numQubitsI64 == ConstantInt::get(Int64Ty, 3)) {
               if (isa<GlobalVariable>(ptr) || isa<Argument>(ptr)) {
+                // Use CreateLoad with explicit type for opaque pointers
                 LoadInst *entryLoad = EntryB.CreateLoad(LI->getType(), ptr, "numq_entry_load");
                 if (entryLoad->getType()->isIntegerTy(32))
                   numQubitsI64 = EntryB.CreateSExt(entryLoad, Int64Ty, "numq_entry_sext");
@@ -214,7 +220,9 @@ public:
       // Allocate the runtime qubit array once at entry and store it in an alloca for later loads.
       CallInst *allocArrCall = EntryB.CreateCall(fnAllocArr, {numQubitsI64});
       allocArrCall->setCallingConv(CallingConv::C);
-      AllocaInst *qubitArrayAlloca = EntryB.CreateAlloca(allocArrCall->getType(), nullptr, "qubit_array_ptr");
+      
+      // Create alloca for opaque pointer - specify the element type explicitly
+      AllocaInst *qubitArrayAlloca = EntryB.CreateAlloca(PtrTy, nullptr, "qubit_array_ptr");
       EntryB.CreateStore(allocArrCall, qubitArrayAlloca);
 
       // Now transform each qc_* call
@@ -223,8 +231,8 @@ public:
         Function *calleef = oldCall->getCalledFunction();
         StringRef fname = calleef->getName();
 
-        // load the Array* (qubit array)
-        Value *arrPtr = CB.CreateLoad(allocArrCall->getType(), qubitArrayAlloca, "loaded_qubit_array");
+        // load the Array* (qubit array) - specify element type for opaque pointer
+        Value *arrPtr = CB.CreateLoad(PtrTy, qubitArrayAlloca, "loaded_qubit_array");
 
         // Helper: given an index value (i32 or i64) produce an i64 index
         auto makeIndex64 = [&](Value *idxVal) -> Value* {
@@ -249,12 +257,12 @@ public:
           Value *idxV = oldCall->getArgOperand(2);
           Value *idx64 = makeIndex64(idxV);
 
-          // get element pointer
-          Value *elemPtrI8 = CB.CreateCall(fnArrayGetElem, {arrPtr, idx64}, "qe_ptr_i8");
-          // bitcast i8* -> %Qubit**
-          PointerType *QubitPtrPtrTy = PointerType::get(QubitPtrTy, 0);
-          Value *bit = CB.CreateBitCast(elemPtrI8, QubitPtrPtrTy, "qe_ptr_qptrptr");
-          Value *qptr = CB.CreateLoad(QubitPtrTy, bit, "qbit");
+          // get element pointer - returns ptr (opaque)
+          Value *elemPtr = CB.CreateCall(fnArrayGetElem, {arrPtr, idx64}, "qe_ptr");
+          
+          // Load the qubit pointer from the array element
+          // In QIR, array elements contain pointers to qubits
+          Value *qptr = CB.CreateLoad(PtrTy, elemPtr, "qbit");
 
           if (fname == "qc_h") {
             CallInst *nc = CB.CreateCall(fnH, {qptr});
@@ -267,7 +275,7 @@ public:
             resPtr->setCallingConv(CallingConv::C);
 
             // convert Result* -> i32 by comparing with __quantum__rt__result_one
-            Value *gOne = CB.CreateLoad(gResultOne->getValueType(), gResultOne, "result_one");
+            Value *gOne = CB.CreateLoad(PtrTy, gResultOne, "result_one");
             Value *isOne = CB.CreateCall(fnResultEqual, {resPtr, gOne}, "isone");
             // zext to i32
             Value *mi = CB.CreateZExt(isOne, Int32Ty, "m_i32");
@@ -291,10 +299,8 @@ public:
           Value *tgtIdx64  = makeIndex64(tgtIdxV);
 
           // Get target qubit pointer
-          Value *tgtElemI8 = CB.CreateCall(fnArrayGetElem, {arrPtr, tgtIdx64}, "tgt_qe_i8");
-          PointerType *QubitPtrPtrTy = PointerType::get(QubitPtrTy, 0);
-          Value *tgtBit = CB.CreateBitCast(tgtElemI8, QubitPtrPtrTy, "tgt_qptrptr");
-          Value *tgtQubit = CB.CreateLoad(QubitPtrTy, tgtBit, "tgt_q");
+          Value *tgtElem = CB.CreateCall(fnArrayGetElem, {arrPtr, tgtIdx64}, "tgt_qe");
+          Value *tgtQubit = CB.CreateLoad(PtrTy, tgtElem, "tgt_q");
 
           // Build a 1-element controls array:
           Value *oneI64 = ConstantInt::get(Int64Ty, 1);
@@ -302,13 +308,11 @@ public:
           controlsArr->setCallingConv(CallingConv::C);
 
           // get element ptr for controlsArr[0]
-          Value *ctrlElemI8 = CB.CreateCall(fnArrayGetElem, {controlsArr, ConstantInt::get(Int64Ty, 0)}, "ctrl_elem_i8");
-          Value *ctrlElemPtr = CB.CreateBitCast(ctrlElemI8, QubitPtrPtrTy, "ctrl_elem_qptrptr");
+          Value *ctrlElemPtr = CB.CreateCall(fnArrayGetElem, {controlsArr, ConstantInt::get(Int64Ty, 0)}, "ctrl_elem");
 
-          // get control qubit pointer value
-          Value *ctrlElemOrigI8 = CB.CreateCall(fnArrayGetElem, {arrPtr, ctrlIdx64}, "ctrl_src_i8");
-          Value *ctrlSrcPtr = CB.CreateBitCast(ctrlElemOrigI8, QubitPtrPtrTy, "ctrl_src_qptrptr");
-          Value *ctrlQubit = CB.CreateLoad(QubitPtrTy, ctrlSrcPtr, "ctrl_q");
+          // get control qubit pointer value from main array
+          Value *ctrlElemOrig = CB.CreateCall(fnArrayGetElem, {arrPtr, ctrlIdx64}, "ctrl_src");
+          Value *ctrlQubit = CB.CreateLoad(PtrTy, ctrlElemOrig, "ctrl_q");
 
           // store control qubit into controlsArr[0]
           CB.CreateStore(ctrlQubit, ctrlElemPtr);
@@ -316,13 +320,13 @@ public:
           // call controlled X with controlsArr and target qubit
           CallInst *nc = CB.CreateCall(fnXctl, {controlsArr, tgtQubit});
           nc->setCallingConv(CallingConv::C);
+
+          // Clean up the temporary controls array (optional but good practice)
+          CallInst *releaseControls = CB.CreateCall(fnReleaseArr, {controlsArr});
+          releaseControls->setCallingConv(CallingConv::C);
         }
 
-        // Erase the original call if it has no remaining uses (or we've replaced uses)
-        if (!oldCall->use_empty()) {
-          // If we've not replaced uses (e.g., h,x had no result) and call still used, keep it.
-          // But in our mapping h/x are void; qc_h/qc_x original wrappers return void, so usually safe to erase.
-        }
+        // Erase the original call
         oldCall->eraseFromParent();
         Changed = true;
       } // end ToReplace
